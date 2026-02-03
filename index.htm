@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>保良局錦泰小學 - 校園網絡管理系統 (Firebase)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-blue: #3498db;
+            --accent-green: #27ae60;
+            --accent-red: #c0392b;
+            --bg-color: #f4f6f7;
+            --border-color: #ddd;
+        }
+
+        body {
+            font-family: "Microsoft JhengHei", "Heiti TC", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        /* --- Navbar --- */
+        .navbar {
+            background: white;
+            padding: 10px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav-title { font-weight: bold; font-size: 1.2em; color: var(--primary-color); }
+        .nav-buttons { display: flex; gap: 10px; }
+        .btn {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background: white;
+            cursor: pointer;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn:hover { background: #f0f0f0; }
+        .btn-primary { background: var(--accent-blue); color: white; border: none; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-danger { color: #e74c3c; border-color: #e74c3c; }
+        .btn-danger:hover { background: #fee; }
+        .btn-success { background: var(--accent-green); color: white; border: none; }
+        .btn-success:hover { background: #219150; }
+        
+        .user-info { font-size: 0.85em; color: #666; margin-right: 10px; display: flex; align-items: center; }
+
+        /* --- Layout Containers --- */
+        .container {
+            max-width: 1600px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        /* --- MAP VIEW STYLES (From v11) --- */
+        .controls-container {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        /* Hide controls when printing PDF */
+        .pdf-hide { display: block; } 
+
+        .global-controls {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .filter-groups {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 0 20px;
+            border-right: 1px solid #eee;
+            align-items: flex-start;
+        }
+        .control-group:last-child { border-right: none; }
+
+        .control-group-title { font-weight: bold; color: #999; font-size: 0.8em; margin-bottom: 5px; text-transform: uppercase; width: 100%; text-align: left; }
+        .control-item { display: flex; align-items: center; gap: 5px; cursor: pointer; margin-bottom: 2px; font-size: 0.9em; user-select: none; }
+        .control-icon { width: 20px; text-align: center; }
+        .legend-double-icon { display: inline-flex; justify-content: center; width: 24px; margin-right: -4px; }
+        .legend-double-icon i:first-child { margin-right: -2px; }
+        .legend-double-icon i:last-child { margin-left: -2px; font-size: 0.9em; color: #666; margin-top: 2px;}
+
+        /* Map Structure */
+        .map-scroll-wrapper {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            overflow-x: auto;
+            margin-bottom: 30px;
+        }
+        .floor-row {
+            display: flex;
+            border-bottom: 2px solid #bdc3c7;
+            padding: 15px 0;
+            min-width: 1000px;
+        }
+        .floor-label {
+            width: 70px;
+            font-weight: bold;
+            font-size: 1.4em;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 3px double #ddd;
+            margin-right: 15px;
+            flex-shrink: 0;
+            background: #fdfdfd;
+        }
+        .zone-left, .zone-right { flex: 1; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
+        .zone-left { justify-content: flex-end; padding-right: 20px; border-right: 1px dashed #eee; }
+        .zone-right { justify-content: flex-start; padding-left: 20px; border-left: 1px dashed #eee; }
+        .zone-center { 
+            width: 200px; justify-content: center; flex-shrink: 0; 
+            background-color: #fafafa; border-radius: 6px; margin: 0 5px; 
+            padding: 10px; border: 1px solid #eee; display: flex; align-items: center; 
+        }
+
+        /* Room Card */
+        .room {
+            border: 1px solid #dcdcdc;
+            border-radius: 6px;
+            background: white;
+            width: 140px;
+            padding: 8px;
+            box-shadow: 1px 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+        .room:hover { transform: translateY(-3px); box-shadow: 2px 5px 10px rgba(0,0,0,0.1); z-index: 10; border-color: #3498db; }
+        .room-header { margin-bottom: 8px; border-bottom: 1px solid #f0f0f0; padding-bottom: 4px; min-height: 45px; }
+        .room-code { font-weight: bold; font-size: 0.9em; color: #2c3e50; margin-right: 5px; }
+        .room-name { font-size: 0.85em; font-weight: bold; color: #333; line-height: 1.2; }
+        .room-en { display: block; font-size: 0.75em; color: #7f8c8d; font-weight: normal; line-height: 1.1; margin-top: 2px; }
+        
+        .type-infra { border-top: 3px solid #c0392b; background: #fffcfc; }
+        .type-admin { border-top: 3px solid #8e44ad; }
+        .type-class { border-top: 3px solid #3498db; }
+        .type-spec { border-top: 3px solid #e67e22; }
+        .type-open { border-top: 3px solid #27ae60; } 
+
+        /* Indicators */
+        .indicators { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 0.8em; }
+        .ind-item { display: flex; align-items: center; gap: 4px; background: #f9f9f9; padding: 2px 4px; border-radius: 4px; }
+        .ind-hidden { display: none !important; }
+        .ind-count { font-weight: bold; font-family: sans-serif; margin-left: auto; }
+
+        /* Colors */
+        .c-sw-core { color: #2c3e50; } .c-sw-l3 { color: #5dade2; }
+        .c-ap-std { color: #3498db; } .c-ap-hd { color: #e74c3c; }
+        .c-node-1g { color: #27ae60; } .c-node-10g { color: #8e44ad; }
+        .c-cable { color: #2c3e50; } 
+        .c-spk-std { color: #7f8c8d; } .c-spk-pwr { color: #d35400; } 
+        .c-misc { color: #8e44ad; }
+
+        /* --- ADMIN PANEL STYLES --- */
+        .admin-section { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; padding: 15px; }
+        .admin-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+        .admin-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .admin-table th { text-align: left; padding: 8px; background: #f8f9fa; color: #666; font-weight: 600; }
+        .admin-table td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: middle; }
+        .admin-table tr:hover { background: #fffdf0; }
+        .admin-input { width: 100%; padding: 4px; border: 1px solid #ddd; border-radius: 3px; }
+        .w-small { width: 45px; text-align: center; }
+        .drag-handle { cursor: move; color: #ccc; text-align: center; }
+        .drag-handle:hover { color: #666; }
+
+        /* --- STATS & DETAILED TABLE --- */
+        .stats-table { width: 100%; border-collapse: collapse; font-size: 0.9em; text-align: center; }
+        .stats-table th, .stats-table td { border: 1px solid #e0e0e0; padding: 8px; }
+        .stats-table th { background: #f8f9fa; color: var(--primary-color); }
+        .stats-total-row { background-color: #e8f4f8; font-weight: bold; }
+
+        /* Compact Table for Detailed List */
+        .compact-table th, .compact-table td {
+            padding: 4px 6px; /* Reduced Padding */
+            font-size: 0.85em; /* Slightly smaller font */
+        }
+        .compact-table td { vertical-align: middle; }
+
+        /* --- MODAL --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal { background: white; padding: 25px; border-radius: 8px; width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .hidden { display: none; }
+        .error-box { background: #fee; border: 1px solid #e74c3c; color: #c0392b; padding: 10px; border-radius: 4px; font-size: 0.9em; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<div class="navbar">
+    <div class="nav-title"><i class="fas fa-network-wired"></i> 校園網絡管理系統</div>
+    <div class="nav-buttons">
+        <div id="userInfo" class="user-info"></div>
+        <div style="display:flex; gap:10px;">
+            <!-- Export PDF Button (Visible to all) -->
+            <button class="btn btn-success" onclick="app.exportPDF()">
+                <i class="fas fa-file-pdf"></i> 匯出報告 (PDF)
+            </button>
+            <div id="guestControls">
+                <button class="btn" onclick="app.loginGoogle()">
+                    <i class="fab fa-google"></i> 管理登入
+                </button>
+            </div>
+        </div>
+        <div id="adminControls" style="display:none; gap:10px;">
+            <button class="btn btn-primary" onclick="app.switchView('map')">
+                <i class="fas fa-map"></i> 地圖預覽
+            </button>
+            <button class="btn" onclick="app.switchView('admin')">
+                <i class="fas fa-cog"></i> 設定管理
+            </button>
+            <button class="btn btn-danger" onclick="app.logout()">登出</button>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Area -->
+<div class="container" id="appContent">
+    <div style="text-align:center; padding: 50px;">載入系統中...</div>
+</div>
+
+<!-- Config Error Modal -->
+<div id="configErrorModal" class="modal-overlay hidden">
+    <div class="modal">
+        <h3 style="margin-top:0; color:#c0392b"><i class="fas fa-exclamation-triangle"></i> Firebase 設定錯誤</h3>
+        <div class="error-box">
+            錯誤代碼: auth/admin-restricted-operation<br>
+            原因: 尚未啟用匿名登入功能。
+        </div>
+        <p style="font-size:0.9em; color:#666; margin-bottom:10px;">
+            請前往 <strong>Firebase Console</strong> > <strong>Authentication</strong> > <strong>Sign-in method</strong>，將 <strong>Anonymous</strong> 設為 Enable。
+        </p>
+        <p style="font-size:0.9em; color:#333; margin-bottom:15px; border-top:1px solid #eee; padding-top:10px;">
+            *系統已切換至「離線預覽模式」，您仍可查看地圖，但數據不會儲存。
+        </p>
+        <div style="display:flex; justify-content:flex-end;">
+            <button class="btn btn-primary" onclick="document.getElementById('configErrorModal').classList.add('hidden')">我知道了 (進入離線模式)</button>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { 
+        getAuth, 
+        signInAnonymously, 
+        signInWithPopup, 
+        signInWithCustomToken,
+        GoogleAuthProvider,
+        signOut, 
+        onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+    import { 
+        getFirestore, collection, doc, setDoc, onSnapshot, 
+        deleteDoc, updateDoc, writeBatch, query 
+    } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    // --- Firebase Configuration ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyA5IKaU2zvdBUn2zn6QGN0GAid4AG9cad0", 
+        authDomain: "schoolnetwork-f04aa.firebaseapp.com",
+        projectId: "schoolnetwork-f04aa",
+        storageBucket: "schoolnetwork-f04aa.firebasestorage.app",
+        messagingSenderId: "529806340316",
+        appId: "1:529806340316:web:26b7fa55ac55ea4ce10419"
+    };
+
+    // Init Firebase
+    const firebaseApp = initializeApp(firebaseConfig);
+    const db = getFirestore(firebaseApp);
+    const auth = getAuth(firebaseApp);
+
+    // Constants
+    const APP_ID = 'school-network-v1';
+    const COLL_NAME = 'locations';
+    const FLOORS = ["7/F", "6/F", "5/F", "4/F", "3/F", "2/F", "1/F", "G/F"];
+    
+    // --- AUTHENTICATION CONFIG ---
+    const ALLOWED_EMAILS = [
+        'sk@grandmont.edu.hk',
+        'webmaster@grandmont.edu.hk'
+    ];
+
+    // Initial Data for Seeding (With English Names and PA Center)
+    const INITIAL_DATA = [
+        { floor: "7/F", zone: "right", code: "701", z: "教員室", e: "Staff Room", type: "admin", as: 2, n10: 1, sw1g: 1, cab: 28, ap_cab: 2, ss: 2, pg: 1 },
+        { floor: "7/F", zone: "right", code: "702", z: "教員休息室", e: "Staff Common Room", type: "admin", as: 1, cab: 1, ap_cab: 1, ss: 1 },
+        { floor: "7/F", zone: "center", z: "7樓開放空間", e: "7/F Open Area", type: "open", as: 1, cab: 1, ss: 1 },
+        
+        { floor: "6/F", zone: "left", code: "609", z: "網絡中樞室", e: "Hub Room", type: "infra", n10: 1, sw1g: 1 },
+        { floor: "6/F", zone: "right", code: "601", z: "6A 課室", e: "6A Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "6/F", zone: "right", code: "602", z: "6B 課室", e: "6B Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "6/F", zone: "right", code: "603", z: "6C 課室", e: "6C Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "6/F", zone: "right", code: "604", z: "6D 課室", e: "6D Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "6/F", zone: "right", code: "605", z: "6E 課室", e: "6E Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "6/F", zone: "right", code: "606", z: "學生輔導室4", e: "Remedial Teaching Room 4", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "6/F", zone: "center", z: "6樓開放空間", e: "6/F Open Area", type: "open", as: 1, cab: 1, ap_cab: 1, ss: 1 },
+
+        { floor: "5/F", zone: "left", z: "禮堂樓座", e: "Balcony", type: "spec", n1: 1, cab: 0, ap_cab: 1, ss: 1 },
+        { floor: "5/F", zone: "right", code: "501", z: "5A 課室", e: "5A Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "5/F", zone: "right", code: "502", z: "5B 課室", e: "5B Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "5/F", zone: "right", code: "503", z: "5C 課室", e: "5C Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "5/F", zone: "right", code: "504", z: "5D 課室", e: "5D Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "5/F", zone: "right", code: "505", z: "5E 課室", e: "5E Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "5/F", zone: "right", code: "506", z: "學生輔導室3", e: "Remedial Teaching Room 3", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "5/F", zone: "center", z: "5樓開放空間", e: "5/F Open Area", type: "open", as: 1, cab: 1, ap_cab: 1, ss: 1 },
+
+        { floor: "4/F", zone: "left", z: "禮堂", e: "Hall", type: "spec", ah: 2, n10: 1, cab: 1, ap_cab: 2 },
+        { floor: "4/F", zone: "right", code: "401", z: "4A 課室", e: "4A Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "4/F", zone: "right", code: "402", z: "4B 課室", e: "4B Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "4/F", zone: "right", code: "403", z: "4C 課室", e: "4C Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "4/F", zone: "right", code: "404", z: "4D 課室", e: "4D Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "4/F", zone: "right", code: "404", z: "4E 課室", e: "4E Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "4/F", zone: "right", code: "406", z: "學生輔導室2", e: "Remedial Teaching Room 2", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "4/F", zone: "center", z: "4樓開放空間", e: "4/F Open Area", type: "open", as: 1, cab: 1, ap_cab: 1, ss: 1 },
+
+        { floor: "3/F", zone: "left", code: "311", z: "伺服器室", e: "Server Room", type: "infra", as: 1, ah: 1, sw10g: 2, sw1g: 1, cab: 0, ap_cab: 2, ss: 1, pa_center: 1 },
+        { floor: "3/F", zone: "left", code: "312", z: "STEAM創意天地", e: "STEM Room", type: "spec", ah: 1, n10: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "3/F", zone: "left", code: "314", z: "視藝室", e: "Visual Art Room", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "3/F", zone: "left", code: "313", z: "常識教學室", e: "General Studies Room", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "3/F", zone: "right", code: "301", z: "3A 課室", e: "3A Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "3/F", zone: "right", code: "302", z: "3B 課室", e: "3B Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "3/F", zone: "right", code: "303", z: "3C 課室", e: "3C Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "3/F", zone: "right", code: "304", z: "3D 課室", e: "3D Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "3/F", zone: "right", code: "305", z: "3E 課室", e: "3E Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "3/F", zone: "right", code: "306", z: "學生輔導室1", e: "Remedial Teaching Room 1", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "3/F", zone: "center", z: "3樓開放空間", e: "3/F Open Area", type: "open", as: 1, cab: 1, ap_cab: 1, ss: 1 },
+
+        { floor: "2/F", zone: "left", z: "圖書館", e: "Library", type: "spec", as: 2, n10: 1, cab: 7, ap_cab: 2, ss: 1 },
+        { floor: "2/F", zone: "left", z: "圖書館學習中心", e: "Library Learning Centre", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "2/F", zone: "left", code: "212", z: "移動學習教室", e: "Maneuverable Classroom", type: "spec", as: 1, n1: 1, cab: 5, ap_cab: 1, ss: 1 },
+        { floor: "2/F", zone: "left", code: "211", z: "多媒體電腦室", e: "M.M. Computer Room", type: "spec", as: 1, cab: 0, ap_cab: 1, ss: 1 },
+        { floor: "2/F", zone: "right", code: "201", z: "2A 課室", e: "2A Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "2/F", zone: "right", code: "202", z: "2B 課室", e: "2B Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "2/F", zone: "right", code: "202", z: "2C 課室", e: "2C Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "2/F", zone: "right", code: "204", z: "2D 課室", e: "2D Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "2/F", zone: "right", code: "205", z: "2E 課室", e: "2E Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "2/F", zone: "right", code: "206", z: "學生支援人員室", e: "Student Support Team Office", type: "admin", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "2/F", zone: "center", z: "2樓開放空間", e: "2/F Open Area", type: "open", as: 1, cab: 1, ap_cab: 1, ss: 1 },
+
+        { floor: "1/F", zone: "left", code: "109", z: "網絡中樞室", e: "Hub Room", type: "infra", n10: 1, sw1g: 1 },
+        { floor: "1/F", zone: "left", code: "111", z: "多用途室", e: "Multi-purpose Room", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "left", code: "112", z: "演藝廳", e: "Lecture Theatre", type: "spec", ah: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "left", code: "117", z: "樂隊練習室", e: "Band Room", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "left", code: "118", z: "音樂室", e: "Music Room", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "right", code: "101", z: "1A 課室", e: "1A Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "right", code: "102", z: "1B 課室", e: "1B Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "right", code: "103", z: "1C 課室", e: "1C Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "right", code: "104", z: "1D 課室", e: "1D Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "right", code: "105", z: "1E 課室", e: "1E Classroom", type: "class", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "right", code: "106", z: "學生輔導室", e: "Remedial Teaching Room", type: "spec", as: 1, n1: 1, cab: 3, ap_cab: 1, ss: 1 },
+        { floor: "1/F", zone: "center", z: "1樓開放空間", e: "1/F Open Area", type: "open", as: 1, cab: 1, ap_cab: 1, ss: 1 },
+
+        { floor: "G/F", zone: "left", z: "有蓋操場", e: "Covered Playground", type: "open", as: 2, n1: 1, cab: 2, ap_cab: 2, sp: 4 },
+        { floor: "G/F", zone: "center", z: "操場", e: "Playground", type: "spec", sp: 3, mic: 1 },
+        { floor: "G/F", zone: "right", code: "G13", z: "會議室", e: "Conference Room", type: "admin", as: 1, n10: 1, cab: 2, ap_cab: 1, ss: 1 },
+        { floor: "G/F", zone: "right", z: "植物長廊", e: "The Botanical Path", type: "spec", as: 1, cab: 1, ss: 1 },
+        { floor: "G/F", zone: "right", z: "茶藝室", e: "Tea Room", type: "spec", as: 1, cab: 2, ap_cab: 1, ss: 1 },
+        { floor: "G/F", zone: "right", code: "G01", z: "校務處", e: "General Office", type: "admin", as: 2, n10: 1, cab: 4, ap_cab: 2, ss: 1, pg: 1, pa: 0 },
+        { floor: "G/F", zone: "right", code: "G03", z: "校長室", e: "Headmaster Office", type: "admin", as: 1, n10: 1, cab: 2, ap_cab: 1, ss: 1 },
+        { floor: "G/F", zone: "right", code: "G04", z: "副校長室", e: "Deputy Headmaster Office", type: "admin", cab: 1, ss: 1 },
+        { floor: "G/F", zone: "right", code: "G09", z: "社工室", e: "Social Worker Office", type: "admin", as: 1, cab: 2, ap_cab: 1, ss: 1 }
+    ];
+
+    // App State
+    const state = {
+        user: null,
+        locations: [],
+        viewMode: 'map', // 'map' or 'admin'
+        filters: { sw_core: true, sw_l3: true, ap_std: true, ap_hd: true, node_1g: true, node_10g: true, cab: true, spk_std: true, spk_pwr: true, mic: true, pg: true, pa_center: true },
+        isAdmin: false,
+        isOfflineMode: false // To track if we fell back to local data
+    };
+
+    // --- Application Logic ---
+
+    // 1. Initialize & Auth
+    window.app = {
+        init: async () => {
+            // 1. Try Custom Token (If provided by environment)
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                try {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                    return; // onAuthStateChanged will handle the rest
+                } catch (e) {
+                    console.warn("Custom token failed, falling back...", e);
+                }
+            }
+
+            // 2. Auth Listener
+            onAuthStateChanged(auth, (user) => {
+                state.user = user;
+                state.isAdmin = false;
+                document.getElementById('userInfo').innerText = '';
+
+                if (user) {
+                    // Logged in (Either Anon or Google)
+                    if (!user.isAnonymous) {
+                        // Google Login
+                        console.log("User logged in:", user.email);
+                        if (ALLOWED_EMAILS.includes(user.email)) {
+                            state.isAdmin = true;
+                            state.viewMode = 'admin'; 
+                            document.getElementById('userInfo').innerText = user.email;
+                        } else {
+                            alert(`存取被拒：您的帳號 (${user.email}) 沒有管理權限。\nAccess Denied.`);
+                            app.logout(); 
+                            return;
+                        }
+                    }
+                    // Load data from Firestore
+                    app.loadData();
+                } else {
+                    // Not logged in -> Try Anonymous for Guest View
+                    signInAnonymously(auth).catch(error => {
+                        console.error("Auth Error:", error);
+                        
+                        // Handle Config Error (Admin Restricted)
+                        if (error.code === 'auth/admin-restricted-operation') {
+                            app.showConfigErrorModal();
+                        }
+                        
+                        // Fallback to Offline Mode
+                        app.enableOfflineMode();
+                    });
+                }
+                app.render();
+            });
+        },
+
+        enableOfflineMode: () => {
+            console.log("Enabling Offline Mode...");
+            state.isOfflineMode = true;
+            // Generate temporary IDs for local data
+            state.locations = INITIAL_DATA.map((d, i) => ({ id: `local_${i}`, ...d }));
+            app.render();
+        },
+
+        showConfigErrorModal: () => {
+            document.getElementById('configErrorModal').classList.remove('hidden');
+        },
+
+        loginGoogle: async () => {
+            // Check protocol for file:// issue
+            if (window.location.protocol === 'file:') {
+                alert("⚠️ Google 登入不支援直接開啟檔案 (file://)。\n請使用 Local Server (例如 VS Code Live Server) 運行此網頁，並確保網址為 http://localhost:...");
+                return;
+            }
+
+            if (state.isOfflineMode) {
+                alert("目前為離線預覽模式，無法登入後台。\n請修正 Firebase 設定 (啟用匿名登入) 後重新整理網頁。");
+                return;
+            }
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Login failed", error);
+                if (error.code === 'auth/unauthorized-domain') {
+                    alert("登入失敗: 網域未授權 (auth/unauthorized-domain)。\n請到 Firebase Console > Authentication > Settings > Authorized domains 加入此網域 (例如 localhost 或 127.0.0.1)。");
+                } else {
+                    alert("登入失敗: " + error.message);
+                }
+            }
+        },
+
+        logout: async () => {
+            await signOut(auth);
+            state.isAdmin = false;
+            state.viewMode = 'map';
+            // onAuthStateChanged will handle re-signing in anonymously
+        },
+
+        loadData: () => {
+            state.isOfflineMode = false;
+            const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', COLL_NAME));
+            onSnapshot(q, (snapshot) => {
+                if(snapshot.empty && state.isAdmin) { 
+                    app.seedData();
+                } else if (!snapshot.empty) {
+                    state.locations = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                    app.render();
+                } else if (snapshot.empty && !state.isAdmin) {
+                    // Try to seed even if guest, for demo purposes (usually risky but helpful here)
+                    app.seedData();
+                }
+            });
+        },
+
+        seedData: async () => {
+            if (state.isOfflineMode) return;
+            console.log("Seeding data...");
+            const batch = writeBatch(db);
+            let order = 0;
+            INITIAL_DATA.forEach(item => {
+                const ref = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', COLL_NAME));
+                batch.set(ref, {...item, order: order++});
+            });
+            await batch.commit();
+        },
+
+        switchView: (mode) => {
+            state.viewMode = mode;
+            app.render();
+        },
+
+        // Filters
+        toggleFilter: (key, checked) => {
+            state.filters[key] = checked;
+            app.render();
+        },
+        toggleAll: (val) => {
+            Object.keys(state.filters).forEach(k => state.filters[k] = val);
+            app.render();
+        },
+
+        // Admin Actions
+        addLocation: async (floor) => {
+            if (state.isOfflineMode) return;
+            const floorItems = state.locations.filter(l => l.floor === floor);
+            const maxOrder = floorItems.length ? Math.max(...floorItems.map(i => i.order || 0)) : 0;
+            const newRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', COLL_NAME));
+            await setDoc(newRef, {
+                floor: floor, zone: 'right', z: '新地點', e: 'New Location', type: 'class', order: maxOrder + 1,
+                as:0, ah:0, n1:0, n10:0, cab:0, ap_cab:0, ss:0, sp:0, mic:0, pg:0, sw10g:0, sw1g:0, pa_center:0
+            });
+        },
+        updateLocation: async (id, field, value) => {
+            if (state.isOfflineMode) return;
+            const numFields = ['as','ah','n1','n10','cab','ap_cab','ss','sp','mic','pg','sw10g','sw1g','pa_center'];
+            let val = value;
+            if(numFields.includes(field)) val = parseInt(value) || 0;
+            const ref = doc(db, 'artifacts', APP_ID, 'public', 'data', COLL_NAME, id);
+            await updateDoc(ref, { [field]: val });
+        },
+        deleteLocation: async (id) => {
+            if (state.isOfflineMode) return;
+            if(confirm("確定刪除此地點?")) {
+                await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', COLL_NAME, id));
+            }
+        },
+        // Reordering
+        handleDragStart: (e, id, floor) => {
+            e.dataTransfer.setData("text/plain", JSON.stringify({id, floor}));
+            e.dataTransfer.effectAllowed = "move";
+        },
+        handleDragOver: (e) => e.preventDefault(),
+        handleDrop: async (e, targetId, targetFloor) => {
+            e.preventDefault();
+            if (state.isOfflineMode) return;
+            const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+            if(data.floor !== targetFloor) {
+                alert("只能在同一樓層內排序");
+                return;
+            }
+            if(data.id === targetId) return;
+
+            const draggedItem = state.locations.find(l => l.id === data.id);
+            const targetItem = state.locations.find(l => l.id === targetId);
+
+            const batch = writeBatch(db);
+            const r1 = doc(db, 'artifacts', APP_ID, 'public', 'data', COLL_NAME, data.id);
+            const r2 = doc(db, 'artifacts', APP_ID, 'public', 'data', COLL_NAME, targetId);
+            batch.update(r1, { order: targetItem.order || 0 });
+            batch.update(r2, { order: draggedItem.order || 0 });
+            await batch.commit();
+        },
+
+        exportPDF: () => {
+            const element = document.getElementById('appContent');
+            // Hide controls during export to clean up the PDF
+            const controls = document.querySelector('.controls-container');
+            if(controls) controls.classList.add('hidden');
+
+            const opt = {
+                margin: 0.2,
+                filename: '校園網絡設備報告.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                // Show controls again
+                if(controls) controls.classList.remove('hidden');
+            });
+        },
+
+        // --- RENDER FUNCTIONS ---
+        render: () => {
+            // Update Navbar
+            document.getElementById('guestControls').style.display = state.isAdmin ? 'none' : 'block'; 
+            document.getElementById('adminControls').style.display = state.isAdmin ? 'flex' : 'none';
+
+            const container = document.getElementById('appContent');
+            container.innerHTML = '';
+
+            if(state.viewMode === 'map') {
+                container.innerHTML = app.getMapHTML() + app.getStatsHTML() + app.getDetailedListHTML();
+                document.querySelectorAll('.filter-chk').forEach(chk => {
+                    chk.checked = state.filters[chk.dataset.key];
+                    chk.onchange = (e) => app.toggleFilter(e.target.dataset.key, e.target.checked);
+                });
+            } else {
+                container.innerHTML = app.getAdminHTML();
+            }
+        },
+
+        getMapHTML: () => {
+            let html = `
+            <div class="controls-container">
+                <div class="global-controls">
+                    <button class="btn btn-primary" onclick="app.toggleAll(true)"><i class="fas fa-check-square"></i> 全選</button>
+                    <button class="btn btn-danger" onclick="app.toggleAll(false)"><i class="fas fa-square"></i> 全部取消</button>
+                </div>
+                <div class="filter-groups">
+                    <div class="control-group">
+                        <div class="control-group-title">交換機 (Switch)</div>
+                        ${app.renderFilter('sw_core', 'server', 'c-sw-core', 'Core Sw (10G)')}
+                        ${app.renderFilter('sw_l3', 'server', 'c-sw-l3', 'L3 Sw (1G)')}
+                    </div>
+                    <div class="control-group">
+                        <div class="control-group-title">無線網絡 (Wi-Fi)</div>
+                        ${app.renderFilter('ap_std', 'wifi', 'c-ap-std', '標準 AP')}
+                        ${app.renderFilter('ap_hd', 'wifi', 'c-ap-hd', '高密度 AP')}
+                    </div>
+                    <div class="control-group">
+                        <div class="control-group-title">光纖節點 (Optical)</div>
+                        ${app.renderFilter('node_1g', 'circle-nodes', 'c-node-1g', '1G 節點')}
+                        ${app.renderFilter('node_10g', 'circle-nodes', 'c-node-10g', '10G 節點')}
+                    </div>
+                    <div class="control-group">
+                        <div class="control-group-title">佈線 (Cabling)</div>
+                        ${app.renderFilter('cab', 'bezier-curve', 'c-cable', 'CAT6 總數')}
+                    </div>
+                    <div class="control-group">
+                        <div class="control-group-title">廣播 (PA)</div>
+                        ${app.renderFilter('spk_std', 'volume-up', 'c-spk-std', 'Standard Spk')}
+                        ${app.renderFilter('spk_pwr', 'volume-up', 'c-spk-pwr', 'Power Spk')}
+                        ${app.renderFilter('mic', 'microphone', 'c-misc', 'Wireless Mics')}
+                        ${app.renderFilter('pg', 'podcast', 'c-misc', 'Paging Station')}
+                        ${app.renderFilter('pa_center', 'tower-broadcast', 'c-misc', 'IP PA Center')}
+                    </div>
+                </div>
+                ${state.isOfflineMode ? '<div style="margin-top:10px; color:orange; font-size:0.8em;"><i class="fas fa-exclamation-circle"></i> 離線預覽模式 (無法儲存變更)</div>' : ''}
+            </div>
+            <div class="map-scroll-wrapper">`;
+
+            FLOORS.forEach(floor => {
+                const items = state.locations.filter(l => l.floor === floor).sort((a,b) => (a.order||0) - (b.order||0));
+                const left = items.filter(i => i.zone === 'left');
+                const center = items.filter(i => i.zone === 'center');
+                const right = items.filter(i => i.zone === 'right');
+
+                html += `
+                <div class="floor-row">
+                    <div class="floor-label">${floor}</div>
+                    <div style="flex:1; display:flex; gap:10px;">
+                        <div class="zone-left">${left.map(i => app.renderRoom(i)).join('')}</div>
+                        <div class="zone-center">${center.map(i => app.renderRoom(i, true)).join('')}</div>
+                        <div class="zone-right">${right.map(i => app.renderRoom(i)).join('')}</div>
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
+            return html;
+        },
+
+        renderFilter: (key, icon, colorClass, label) => `
+            <label class="control-item select-none">
+                <input type="checkbox" class="filter-chk" data-key="${key}">
+                ${key === 'mic' ? `<span class="legend-double-icon ${colorClass}"><i class="fas fa-microphone"></i><i class="fas fa-microphone"></i></span>` : `<i class="fas fa-${icon} control-icon ${colorClass}"></i>`}
+                <span style="font-weight:bold" class="${colorClass}">${label}</span>
+            </label>
+        `,
+
+        renderRoom: (item, isCenter = false) => {
+            const f = state.filters;
+            let inds = '';
+            
+            // Switch
+            if(f.sw_core && item.sw10g) inds += app.renderInd('server', 'c-sw-core', item.sw10g, 'Core 10G');
+            if(f.sw_l3 && item.sw1g) inds += app.renderInd('server', 'c-sw-l3', item.sw1g, 'L3 1G');
+            
+            // Wi-Fi
+            if(f.ap_std && item.as) inds += app.renderInd('wifi', 'c-ap-std', item.as, 'Std AP');
+            if(f.ap_hd && item.ah) inds += app.renderInd('wifi', 'c-ap-hd', item.ah, 'HD AP');
+            
+            // Optical
+            if(f.node_1g && item.n1) inds += app.renderInd('circle-nodes', 'c-node-1g', item.n1, '1G Node');
+            if(f.node_10g && item.n10) inds += app.renderInd('circle-nodes', 'c-node-10g', item.n10, '10G Node');
+            
+            // Cabling
+            if(f.cab) {
+                const totalCab = (item.cab||0) + (item.ap_cab||0);
+                if(totalCab > 0) inds += app.renderInd('bezier-curve', 'c-cable', totalCab, 'Cabling');
+            }
+            
+            // PA
+            if(f.spk_std && item.ss) inds += app.renderInd('volume-up', 'c-spk-std', item.ss, 'Std Spk');
+            if(f.spk_pwr && item.sp) inds += app.renderInd('volume-up', 'c-spk-pwr', item.sp, 'Pwr Spk');
+            if(f.mic && item.mic) inds += `<div class="ind-item c-misc" title="Mic"><i class="fas fa-microphone"></i><i class="fas fa-microphone" style="margin-left:-2px;font-size:0.8em"></i><span class="ind-count">${item.mic}</span></div>`;
+            if(f.pg && item.pg) inds += app.renderInd('podcast', 'c-misc', item.pg, 'Paging');
+            if(f.pa_center && item.pa_center) inds += app.renderInd('tower-broadcast', 'c-misc', item.pa_center, 'IP PA Center');
+
+            return `
+            <div class="room type-${item.type || 'spec'} ${isCenter?'zone-center-item':''}" style="${isCenter?'width:95%':''}">
+                <div class="room-header">
+                    ${item.code ? `<span class="room-code">${item.code}</span>` : ''}
+                    <span class="room-name">${item.z}</span>
+                    ${item.e ? `<span class="room-en">${item.e}</span>` : ''}
+                </div>
+                <div class="indicators">${inds}</div>
+            </div>`;
+        },
+
+        renderInd: (icon, color, count, title) => `
+            <div class="ind-item ${color}" title="${title}">
+                <i class="fas fa-${icon}"></i><span class="ind-count">${count}</span>
+            </div>
+        `,
+
+        getStatsHTML: () => {
+            const grandTotal = { sw10g:0, sw1g:0, as:0, ah:0, n1:0, n10:0, cab:0, ss:0, sp:0, mic:0, pg:0, pa_c:0 };
+            const floorStatsMap = {};
+
+            FLOORS.forEach(f => {
+                const fStats = { sw10g:0, sw1g:0, as:0, ah:0, n1:0, n10:0, cab:0, ss:0, sp:0, mic:0, pg:0, pa_c:0 };
+                
+                state.locations.filter(l => l.floor === f).forEach(l => {
+                    fStats.sw10g += parseInt(l.sw10g)||0; 
+                    fStats.sw1g += parseInt(l.sw1g)||0;
+                    fStats.as += parseInt(l.as)||0; 
+                    fStats.ah += parseInt(l.ah)||0;
+                    fStats.n1 += parseInt(l.n1)||0; 
+                    fStats.n10 += parseInt(l.n10)||0;
+                    fStats.cab += (parseInt(l.cab)||0) + (parseInt(l.ap_cab)||0);
+                    fStats.ss += parseInt(l.ss)||0; 
+                    fStats.sp += parseInt(l.sp)||0;
+                    fStats.mic += parseInt(l.mic)||0; 
+                    fStats.pg += parseInt(l.pg)||0;
+                    fStats.pa_c += parseInt(l.pa_center)||0;
+                });
+
+                floorStatsMap[f] = fStats;
+                Object.keys(grandTotal).forEach(k => grandTotal[k] += fStats[k]);
+            });
+
+            const renderRow = (label, d, isHeader=false) => `
+                <tr class="${isHeader ? 'stats-total-row' : ''}">
+                    <td>${label}</td>
+                    <td>${d.sw10g||'-'}</td><td>${d.sw1g||'-'}</td>
+                    <td>${d.as||'-'}</td><td>${d.ah||'-'}</td>
+                    <td>${d.n1||'-'}</td><td>${d.n10||'-'}</td>
+                    <td>${d.cab||'-'}</td>
+                    <td>${d.ss||'-'}</td><td>${d.sp||'-'}</td>
+                    <td>${d.mic||'-'}</td><td>${d.pg||'-'}</td>
+                    <td>${d.pa_c||'-'}</td>
+                </tr>
+            `;
+
+            return `
+            <div class="admin-section" style="margin-top:30px">
+                <h3 style="border-bottom:1px solid #eee; padding-bottom:10px;"><i class="fas fa-chart-bar"></i> 設備統計 (Statistics)</h3>
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>樓層</th><th>Core SW</th><th>L3 SW</th><th>Std AP</th><th>HD AP</th><th>1G Node</th><th>10G Node</th><th>Cabling</th><th>Std Spk</th><th>Pwr Spk</th><th>Mic</th><th>Paging</th><th>IP PA</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${FLOORS.map(f => renderRow(f, floorStatsMap[f])).join('')}
+                        ${renderRow('總計 (Total)', grandTotal, true)}
+                    </tbody>
+                </table>
+            </div>`;
+        },
+
+        getDetailedListHTML: () => {
+            const floorOrder = ["7/F", "6/F", "5/F", "4/F", "3/F", "2/F", "1/F", "G/F"];
+            const sorted = [...state.locations].sort((a, b) => {
+                const fiA = floorOrder.indexOf(a.floor);
+                const fiB = floorOrder.indexOf(b.floor);
+                if(fiA !== fiB) return fiA - fiB;
+                return (a.order||0) - (b.order||0);
+            });
+
+            return `
+            <div class="admin-section" style="margin-top:30px; margin-bottom:50px;">
+                <h3 style="border-bottom:1px solid #eee; padding-bottom:10px;"><i class="fas fa-list-ul"></i> 各地點設備詳情 (Detailed Equipment List)</h3>
+                <div style="overflow-x:auto">
+                    <table class="stats-table compact-table" style="text-align:center; min-width:1000px;">
+                        <thead>
+                            <tr style="background-color:#eee;">
+                                <th style="text-align:left; width:80px;">樓層</th>
+                                <th style="text-align:left; width:200px;">地點名稱</th>
+                                <th class="w-small">Core SW</th><th class="w-small">L3 SW</th>
+                                <th class="w-small">Std AP</th><th class="w-small">HD AP</th>
+                                <th class="w-small">1G Node</th><th class="w-small">10G Node</th>
+                                <th class="w-small">Cabling</th>
+                                <th class="w-small">Std Spk</th><th class="w-small">Pwr Spk</th>
+                                <th class="w-small">Mic</th><th class="w-small">Paging</th>
+                                <th class="w-small">IP PA</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${sorted.map(l => {
+                                const cabTot = (parseInt(l.cab)||0) + (parseInt(l.ap_cab)||0);
+                                const v = (val) => (parseInt(val) > 0 ? `<span style="font-weight:bold; color:#333">${val}</span>` : '<span style="color:#ddd">-</span>');
+                                
+                                return `
+                                <tr style="border-bottom:1px solid #eee;">
+                                    <td style="text-align:left; font-weight:bold;">${l.floor}</td>
+                                    <td style="text-align:left;">
+                                        ${l.code ? `<span style="color:#666; margin-right:5px; font-size:0.9em;">${l.code}</span>` : ''}
+                                        <span style="font-weight:bold;">${l.z}</span><br>
+                                        <span style="font-size:0.85em; color:#7f8c8d;">${l.e||'-'}</span>
+                                    </td>
+                                    <td>${v(l.sw10g)}</td><td>${v(l.sw1g)}</td>
+                                    <td>${v(l.as)}</td><td>${v(l.ah)}</td>
+                                    <td>${v(l.n1)}</td><td>${v(l.n10)}</td>
+                                    <td>${v(cabTot)}</td>
+                                    <td>${v(l.ss)}</td><td>${v(l.sp)}</td>
+                                    <td>${v(l.mic)}</td><td>${v(l.pg)}</td>
+                                    <td>${v(l.pa_center)}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        },
+
+        getAdminHTML: () => {
+            let html = `<h2>後台管理</h2>`;
+            FLOORS.forEach(floor => {
+                const items = state.locations.filter(l => l.floor === floor).sort((a,b) => (a.order||0) - (b.order||0));
+                html += `
+                <div class="admin-section">
+                    <div class="admin-header">
+                        <span style="font-weight:bold; font-size:1.1em">${floor}</span>
+                        <button class="btn btn-primary" onclick="app.addLocation('${floor}')"><i class="fas fa-plus"></i> 新增</button>
+                    </div>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th class="w-small">排序</th><th>區域</th><th>編號</th><th>名稱 (中文)</th><th>名稱 (英文)</th><th>類型</th>
+                                <th class="w-small" title="Std AP">AP</th><th class="w-small" title="HD AP">HD</th>
+                                <th class="w-small" title="1G Node">1G</th><th class="w-small" title="10G Node">10G</th>
+                                <th class="w-small" title="Data Cabling">Data</th><th class="w-small" title="AP Cabling">AP線</th>
+                                <th class="w-small" title="Wireless Mic">Mic</th>
+                                <th class="w-small" title="Paging Station">Page</th>
+                                <th class="w-small" title="IP PA Center">Center</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody ondragover="app.handleDragOver(event)">
+                            ${items.map(item => `
+                                <tr draggable="true" ondragstart="app.handleDragStart(event, '${item.id}', '${floor}')" ondrop="app.handleDrop(event, '${item.id}', '${floor}')">
+                                    <td class="drag-handle"><i class="fas fa-bars"></i></td>
+                                    <td>
+                                        <select class="admin-input" onchange="app.updateLocation('${item.id}', 'zone', this.value)">
+                                            <option value="left" ${item.zone==='left'?'selected':''}>Left</option>
+                                            <option value="center" ${item.zone==='center'?'selected':''}>Center</option>
+                                            <option value="right" ${item.zone==='right'?'selected':''}>Right</option>
+                                        </select>
+                                    </td>
+                                    <td><input class="admin-input" style="width:60px" value="${item.code||''}" onchange="app.updateLocation('${item.id}', 'code', this.value)"></td>
+                                    <td><input class="admin-input" value="${item.z||''}" onchange="app.updateLocation('${item.id}', 'z', this.value)"></td>
+                                    <td><input class="admin-input" value="${item.e||''}" onchange="app.updateLocation('${item.id}', 'e', this.value)"></td>
+                                    <td>
+                                        <select class="admin-input" onchange="app.updateLocation('${item.id}', 'type', this.value)">
+                                            <option value="class" ${item.type==='class'?'selected':''}>Class</option>
+                                            <option value="spec" ${item.type==='spec'?'selected':''}>Spec</option>
+                                            <option value="admin" ${item.type==='admin'?'selected':''}>Admin</option>
+                                            <option value="infra" ${item.type==='infra'?'selected':''}>Infra</option>
+                                            <option value="open" ${item.type==='open'?'selected':''}>Open</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="number" class="admin-input w-small" value="${item.as||0}" onchange="app.updateLocation('${item.id}', 'as', this.value)"></td>
+                                    <td><input type="number" class="admin-input w-small" value="${item.ah||0}" onchange="app.updateLocation('${item.id}', 'ah', this.value)"></td>
+                                    <td><input type="number" class="admin-input w-small" value="${item.n1||0}" onchange="app.updateLocation('${item.id}', 'n1', this.value)"></td>
+                                    <td><input type="number" class="admin-input w-small" value="${item.n10||0}" onchange="app.updateLocation('${item.id}', 'n10', this.value)"></td>
+                                    <td><input type="number" class="admin-input w-small" value="${item.cab||0}" onchange="app.updateLocation('${item.id}', 'cab', this.value)"></td>
+                                    <td><input type="number" class="admin-input w-small" value="${item.ap_cab||0}" onchange="app.updateLocation('${item.id}', 'ap_cab', this.value)"></td>
+                                    <td><input type="number" class="admin-input w-small" value="${item.mic||0}" onchange="app.updateLocation('${item.id}', 'mic', this.value)"></td>
+                                    <td><input type="number" class="admin-input w-small" value="${item.pg||0}" onchange="app.updateLocation('${item.id}', 'pg', this.value)"></td>
+                                    <td><input type="number" class="admin-input w-small" value="${item.pa_center||0}" onchange="app.updateLocation('${item.id}', 'pa_center', this.value)"></td>
+                                    <td>
+                                        <button class="btn btn-danger" style="padding:4px 8px" onclick="app.deleteLocation('${item.id}')"><i class="fas fa-trash"></i></button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>`;
+            });
+            return html;
+        }
+    };
+
+    // Start App
+    app.init();
+</script>
+
+</body>
+</html>
